@@ -2063,8 +2063,11 @@ module Orocos
 
 		type_header = Generation.render_template('typekit/Types.hpp', binding)
 		public_header_files << save_automatic_public_header("Types.hpp", type_header)
+                fwd_hpp = Generation.render_template 'typekit/TypesFwd.hpp', binding
+                public_header_files << save_automatic_public_header("TypesFwd.hpp", fwd_hpp)
 		type_header = Generation.render_template('typekit/TypesDeprecated.hpp', binding)
 		save_automatic("Types.hpp", type_header)
+
 		type_header = Generation.render_template('typekit/OpaquesDeprecated.hpp', binding)
 		save_automatic("Opaques.hpp", type_header)
                 boost_serialization = Generation.render_template "typekit/BoostSerialization.hpp", binding

@@ -17,6 +17,8 @@
 
 <% typesets.converted_types.each do |type|
     target_type = typekit.intermediate_type_for(type) %>
+<%=  typekit.cxx_gen_includes(*typekit.include_for_type(type)) %>
+
 bool orogen_typekits::toCORBA( <%= target_type.corba_ref_type %> corba, <%= type.arg_type %> value )
 {
 <%= result = ""
@@ -36,6 +38,7 @@ bool orogen_typekits::fromCORBA( <%= type.ref_type %> value, <%= target_type.cor
 <% end %>
 <% typesets.array_types.each do |type|
     target_type = typekit.intermediate_type_for(type) %>
+<%=  typekit.cxx_gen_includes(*typekit.include_for_type(type)) %>
 bool orogen_typekits::toCORBA( <%= target_type.corba_ref_type %> corba, <%= type.arg_type %> value, int length )
 {
 <%= result = ""
