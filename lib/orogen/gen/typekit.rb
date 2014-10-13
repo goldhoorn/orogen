@@ -1353,6 +1353,32 @@ module Orocos
                 include_candidates.compact.min_by { |inc| inc.size }
             end
 
+            # Returns an existing orogen_include metadata entry for the given
+            # type, or nil if none exists so far
+            #
+            # @param type [Model<Type>] a type model
+            # @return [Array,nil] either a non-empty set of entries for
+            #   orogen_include or nil if none could be found
+            def existing_orogen_include_for_type(type)
+                if imported_types.include?(type.name)
+                    metadata = imported_types.get(type.name).metadata.get('orogen_include')
+                    if !metadata.empty?
+                        return metadata
+                    end
+                end
+                if self.registry.include?(type.name)
+                    metadata = self.registry.get(type.name).metadata.get('orogen_include')
+                    if !metadata.empty?
+                        return metadata
+                    end
+                end
+                metadata = type.metadata.get('orogen_include')
+                if !metadata.empty?
+                    return metadata
+                end
+                nil
+            end
+
             # Resolves the orogen_include metadata for each type in the given
             # registry
             #
@@ -1369,23 +1395,44 @@ module Orocos
                 queue = Array.new
                 registry.each do |type|
                     _, template_args = Typelib::GCCXMLLoader.parse_template(type.name)
-                    template_args.delete_if { |type_name| !registry.include?(type_name) }
+                    template_args = template_args.map do |type_name|
+                        if registry.include?(type_name)
+                            registry.get(type_name)
+                        end
+                    end.compact
                     queue << [type, template_args]
                 end
-                queue = queue.sort_by { |_, template_args| template_args.size }
+                queue = queue.sort_by { |type, template_args| [template_args.size, type.name.size] }
 
                 while !queue.empty?
                     # If this is a template, we need to add the relevant
                     # includes for the parameters as well. We need to do some
                     # form of ordering for that to work ...
                     queue.delete_if do |type, template_args|
-                        has_unresolved_args = template_args.any? do |arg_name|
-                            queue.include?(registry.get(arg_name))
+                        has_unresolved_args = template_args.any? do |template_arg_type|
+                            queue.include?(template_arg_type)
                         end
                         next(false) if has_unresolved_args
 
-                        location = type.metadata.get('source_file_line').first
-                        next(true) if !location
+                        # 'Types with deference' are vectors and arrays. Arrays
+                        # are ignored. Vectors are hardcoded to :vector
+                        if type.respond_to?(:deference)
+                            if type <= Typelib::ContainerType
+                                if type.name == '/std/string'
+                                    type.metadata.set('orogen_include', ':string')
+                                elsif type.container_kind == '/std/vector'
+                                    type.metadata.set('orogen_include', ':vector')
+                                else
+                                    raise ArgumentError, "unexpected container type #{type.container_kind}"
+                                end
+                            end
+                            next(true)
+                        elsif existing = existing_orogen_include_for_type(type)
+                            type.metadata.set('orogen_include', *existing)
+                            next(true)
+                        elsif !(location = type.metadata.get('source_file_line').first)
+                            next(true)
+                        end
 
                         file, line = location.split(':')
                         if !File.file?(file)
@@ -1395,25 +1442,7 @@ module Orocos
                         end
 
                         orogen_include = file_to_include[file][Integer(line)]
-                        if imported_types.include?(type.name)
-                            metadata = imported_types.get(type.name).metadata.get('orogen_include')
-                            if !metadata.empty?
-                                metadata.each do |inc|
-                                    type.metadata.add('orogen_include', inc)
-                                end
-                                next(true)
-                            end
-                        end
-                        if self.registry.include?(type.name)
-                            metadata = self.registry.get(type.name).metadata.get('orogen_include')
-                            if !metadata.empty?
-                                next(true)
-                            end
-                        end
-                        if type.metadata.get('orogen_include').empty?
-                            type.metadata.set('orogen_include', "#{self.name}:#{orogen_include}")
-                        end
-                        true
+                        type.metadata.set('orogen_include', "#{self.name}:#{orogen_include}")
                     end
                 end
             end
