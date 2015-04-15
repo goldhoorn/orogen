@@ -46,12 +46,13 @@ ENDIF ( NOT CMAKE_BUILD_TYPE )
 include(OrogenPkgCheckModules)
 orogen_pkg_check_modules(OrocosRTT REQUIRED "orocos-rtt-${OROCOS_TARGET}>=1.99.4")
 
+if(NOT TARGET regen)
 ADD_CUSTOM_TARGET(regen
     <% ruby_bin   = RbConfig::CONFIG['RUBY_INSTALL_NAME']
        typegen_bin = 'typegen' %>
    <%= typegen_bin %> <%= RTT_CPP.command_line_options.join(" ") %>
    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/<%= RTT_CPP.relative_generation_directory %>)
-
+endif()
 <% end %>
 # END if typekit.standalone?
 ##
@@ -74,7 +75,7 @@ add_definitions(${OrocosRTT_CFLAGS_OTHER})
 link_directories(${OrocosRTT_LIBRARY_DIRS})
 
 <% if typekit.has_opaques_with_templates? %>
-include_directories(BEFORE ${CMAKE_SOURCE_DIR}/typekit)
+include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/typekit)
 <% end %>
 
 # Now set up the dependencies
@@ -164,6 +165,8 @@ add_custom_command(
     DEPENDS ${TYPEKIT_SOURCE_HEADERS}
     COMMENT "Typekit input changed. Run make regen in your build directory first"
     COMMAND /bin/false)
+if(NOT TARGET check-typekit-uptodate)
 add_custom_target(check-typekit-uptodate ALL DEPENDS "${TK_STAMP}")
+endif()
 add_dependencies(${libname} check-typekit-uptodate)
 

@@ -1,8 +1,10 @@
 include(OrogenPkgCheckModules)
+if(NOT TARGET regen)
 ADD_CUSTOM_TARGET(regen
     <% ruby_bin   = RbConfig::CONFIG['RUBY_INSTALL_NAME'] %>
     <%= ruby_bin %> -S orogen <%= RTT_CPP.command_line_options.join(" ") %> <%= project.deffile %>
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+endif()
 
 add_custom_command(
     OUTPUT ${PROJECT_SOURCE_DIR}/<%= RTT_CPP::AUTOMATIC_AREA_NAME %>/<%= File.basename(project.deffile) %>
@@ -10,12 +12,14 @@ add_custom_command(
     COMMENT "oroGen specification file changed. Run make regen first."
     COMMAND /bin/false)
 
+if(NOT TARGET check-uptodate)
 <% if File.file?(project.deffile) %>
 add_custom_target(check-uptodate ALL
     DEPENDS "${PROJECT_SOURCE_DIR}/<%= RTT_CPP::AUTOMATIC_AREA_NAME %>/<%= File.basename(project.deffile) %>")
 <% else %>
 add_custom_target(check-uptodate ALL)
 <% end %>
+endif()
 
 # In Orogen project, the build target is specified at generation time
 set(OROCOS_TARGET "<%= project.orocos_target %>")
@@ -52,6 +56,7 @@ IF ( NOT CMAKE_BUILD_TYPE )
 ENDIF ( NOT CMAKE_BUILD_TYPE )
 
 # Check for Doxygen and enable documentation building if available
+if(NOT TARGET doc)
 FIND_PACKAGE( Doxygen )
 IF ( DOXYGEN_FOUND )
   MESSAGE(STATUS "documentation can be built" )
@@ -60,6 +65,7 @@ IF ( DOXYGEN_FOUND )
 ELSE ( DOXYGEN_FOUND )
   MESSAGE(STATUS "documentation generation disabled" )
 ENDIF ( DOXYGEN_FOUND )
+endif()
 
 #
 # Start setting up the build itself
@@ -69,20 +75,20 @@ ENDIF ( DOXYGEN_FOUND )
 orogen_pkg_check_modules(OrocosRTT REQUIRED "orocos-rtt-${OROCOS_TARGET}>=2.1.0")
 
 # Add generic include directories
-INCLUDE_DIRECTORIES(BEFORE ${PROJECT_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>)
-INCLUDE_DIRECTORIES(BEFORE ${PROJECT_SOURCE_DIR})
+INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
+INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/)
 
 <% if project.typekit %>
 # Take care of the typekit
-ADD_SUBDIRECTORY( ${CMAKE_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit )
-INCLUDE_DIRECTORIES(BEFORE "${CMAKE_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit")
-INCLUDE_DIRECTORIES(BEFORE "${CMAKE_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit/types")
+ADD_SUBDIRECTORY( ${CMAKE_CURRENT_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit )
+INCLUDE_DIRECTORIES(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit")
+INCLUDE_DIRECTORIES(BEFORE "${CMAKE_CURRENT_SOURCE_DIR}/<%= Generation::AUTOMATIC_AREA_NAME %>/typekit/types")
 add_dependencies(check-uptodate check-typekit-uptodate)
 <% end %>
 
 # Take care of the task library
 <% if !project.self_tasks.empty? %>
-ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/tasks)
+ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/tasks)
 <% end %>
 
 configure_file(<%= Generation::AUTOMATIC_AREA_NAME %>/orogen-project-<%= project.name %>.pc.in
@@ -110,3 +116,6 @@ if (EXISTS ${PROJECT_SOURCE_DIR}/scripts/roby.rb)
         RENAME <%= project.name %>.rb)
 endif()
 
+if (EXISTS ${PROJECT_SOURCE_DIR}/tests/CMakeLists.txt)
+    add_subdirectory( ${PROJECT_SOURCE_DIR}/tests)
+endif()

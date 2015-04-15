@@ -15,7 +15,9 @@ rtt_cpp = OroGen::Gen::RTT_CPP
 
 verbosity = 0
 extended_states = true
-project = rtt_cpp::Project.new
+project = [rtt_cpp::Project.new]
+#For tests
+project << rtt_cpp::Project.new 
 OroGen::TypekitMarshallers::TypeInfo::Plugin.rtt_scripting = true
 
 imported_typekits = []
@@ -23,15 +25,16 @@ transports = []
 extensions = []
 no_transports = false
 explicit_typekit_slice = false
+build_tests = false
 
 parser = OptionParser.new do |opt|
     opt.banner = "Usage: orogen [options] <template file>"
 
     opt.on("--[no-]corba", "enables/disables corba support (deprecated, use --transports instead)") do |flag|
-        project.enable_transports('corba')
+        project.each{|p| p.enable_transports('corba')}
     end
     opt.on("--[no-]extended-states", "disable or enable extended states for all tasks defined in this project (enabled by default)") do |flag|
-        project.extended_states = flag
+        project.each{|p| p.extended_states = flag}
     end
 
     opt.on('--no-transports', "disables all transports (by default, #{DEFAULT_TRANSPORTS.join(", ")} are enabled)") do |transport_names|
@@ -69,6 +72,7 @@ parser = OptionParser.new do |opt|
 
         rtt_cpp.orocos_target = target.to_s
     end
+    
 
     opt.on('--type-export-policy=STRING", "sets the default type export policy. Must be either all or used') do |mode|
         rtt_cpp.default_type_export_policy = mode.to_sym
@@ -80,7 +84,8 @@ parser = OptionParser.new do |opt|
     opt.on('--[no-]rtt-scripting', 'when generating the typekit, remove features needed for RTT scripting (speeds up compilation and reduces code size)') do |value|
         OroGen::TypekitMarshallers::TypeInfo::Plugin.rtt_scripting = value
     end
-
+    
+    opt.on("-t", "--tests")   { build_tests = true }
     opt.on("-v", "--verbose") { rtt_cpp.logger.level = Logger::INFO; verbosity = 1 }
     opt.on("-d", "--debug")   { rtt_cpp.logger.level = Logger::DEBUG; verbosity = 2 }
     opt.on("-h", "--help", "this help message") do
@@ -154,26 +159,36 @@ end
 
 ConfigError = OroGen::ConfigError
 begin
-    filename  = files.first
-    OroGen.beautify_loading_errors(filename) do
-        project.enable_transports(*transports)
-        project.enable_extension(extensions)
-        imported_typekits.each do |tk_name|
-            begin
-                project.using_typekit tk_name
-            rescue LoadError
-                raise ArgumentError, "#{tk_name}, which was given to the --import option, does not seem to be a typekit name"
-            end
-        end
-        project.load(filename, verbosity > 1)
+    f = [[File.expand_path(files.first),project[0]]]
+    if(build_tests)
+        f << [(File.expand_path(File.join(File.dirname(files.first), "tests","test_" + File.basename(files.first)))),project[1]]
     end
-
-    project.generate
+    current_file =nil
+    f.each do |filename, p|
+        current_file = filename
+        Dir.chdir(File.dirname(filename)) do |d|
+#            rtt_cpp.generation_directory = d 
+            OroGen.beautify_loading_errors(filename) do
+                p.enable_transports(*transports)
+                p.enable_extension(extensions)
+                imported_typekits.each do |tk_name|
+                    begin
+                        p.using_typekit tk_name
+                    rescue LoadError
+                        raise ArgumentError, "#{tk_name}, which was given to the --import option, does not seem to be a typekit name"
+                    end
+                end
+                STDOUT.puts "Creating for file: #{filename}"
+                p.load(filename, verbosity > 1)
+            end
+            p.generate
+        end
+    end
 rescue LoadError, ConfigError, ArgumentError => e
     raise if verbosity > 0
     # Find the first stack frame on the orogen file
-    file_pattern = /#{Regexp.quote(File.basename(filename))}/
-    error_line = e.backtrace.find { |line| line =~ file_pattern } || filename 
+    file_pattern = /#{Regexp.quote(File.basename(current_file))}/
+    error_line = e.backtrace.find { |line| line =~ file_pattern } || current_file 
     STDERR.puts "#{error_line}: #{e.message} (#{e.class})"
     exit 1
 rescue Exception => e
