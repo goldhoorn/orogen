@@ -64,6 +64,14 @@ INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/<%= project.name %>-tasks-${OROCOS_TAR
    end
 %>
 
+find_package(PkgConfig)
+pkg_check_modules(class_loader class_loader)
+INCLUDE_DIRECTORIES(class_loader_INCLUDE_DIRECTORIES)
+LINK_DIRECTORIES(class_loader_LINK_DIRECTORIES)
+FIND_PACKAGE( Boost COMPONENTS system REQUIRED )
+list(APPEND <%= project.name.upcase %>_TASKLIB_INTERFACE_LIBRARIES ${class_loader_LIBRARIES})
+
+
 add_definitions(-DRTT_COMPONENT)
 set(<%= project.name.upcase %>_TASKLIB_NAME <%= project.name %>-tasks-${OROCOS_TARGET})
 set(<%= project.name.upcase %>_TASKLIB_SOURCES
